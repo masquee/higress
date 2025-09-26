@@ -1,0 +1,15 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-proxy-qwen
+  namespace: higress-system
+spec:
+  matchRules:
+    - config:
+        provider:
+          type: qwen
+          apiTokens:
+            - ""
+      ingress:
+        - mcp-qwen
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0

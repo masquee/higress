@@ -1,0 +1,49 @@
+services:
+  envoy:
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.1.5
+    entrypoint: /usr/local/bin/envoy
+    # 注意这里对 wasm 开启了 debug 级别日志,正式部署时则默认 info 级别
+    command: -c /etc/envoy/envoy.yaml --component-log-level wasm:debug
+    networks:
+      - wasmtest
+    ports:
+      - "10000:10000"
+      - "20000:20000"
+      - "9901:9901"
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+      - ./plugin.wasm:/etc/envoy/plugin.wasm
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - wasmtest
+    ports:
+      - "6379:6379"
+
+  httpbin:
+    image: kennethreitz/httpbin:latest
+    networks:
+      - wasmtest
+    ports:
+      - "12345:80"
+
+  mock-ai:
+    image: python:3.9-slim
+    command: python /app/mock-ai-service.py
+    networks:
+      - wasmtest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./mock-ai-service.py:/app/mock-ai-service.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  wasmtest: {}

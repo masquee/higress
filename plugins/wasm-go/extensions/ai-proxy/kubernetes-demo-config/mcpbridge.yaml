@@ -1,0 +1,11 @@
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: default
+  namespace: higress-system
+spec:
+  registries:
+    - domain: dashscope.aliyuncs.com
+      name: mcp-qwen
+      port: 443
+      type: dns

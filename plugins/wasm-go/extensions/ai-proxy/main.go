@@ -195,10 +195,12 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 	path, _ := url.Parse(rawPath)
 	apiName := getApiName(path.Path)
+	log.Debugf("[onHttpRequestHeader] rawPath: %s, apiName: %s", rawPath, apiName)
 	providerConfig := pluginConfig.GetProviderConfig()
 	if providerConfig.IsOriginal() {
 		if handler, ok := activeProvider.(provider.ApiNameHandler); ok {
 			apiName = handler.GetApiName(path.Path)
+			log.Debugf("[onHttpRequestHeader] providerConfig.IsOriginal, apiName: %s", apiName)
 		}
 	}
 
@@ -286,6 +288,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if providerConfig.IsRetryOnFailureEnabled() {
 			ctx.SetContext(provider.CtxRequestBody, body)
 		}
+		log.Debugf("[onHttpRequestBody] body=%s", body)
 		newBody, settingErr := providerConfig.ReplaceByCustomSettings(body)
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)

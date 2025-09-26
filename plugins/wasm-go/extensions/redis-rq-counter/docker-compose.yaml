@@ -1,0 +1,49 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis-server
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-network
+
+  httpbin:
+    image: kennethreitz/httpbin
+    container_name: httpbin
+    ports:
+      - "8080:80"
+    networks:
+      - app-network
+
+  envoy:
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.1.5
+    entrypoint: /usr/local/bin/envoy
+    # 注意这里对 wasm 开启了 debug 级别日志,正式部署时则默认 info 级别
+    command: -c /etc/envoy/envoy.yaml --component-log-level wasm:debug -l info
+    container_name: envoy
+    ports:
+      - "10000:10000"  # HTTP 端口
+      - "9901:9901"    # Admin 端口
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+      - ./plugin.wasm:/etc/envoy/plugin.wasm
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  redis-data:

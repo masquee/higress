@@ -10,12 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 )
 
 // qwenProvider is the provider for Qwen service.
@@ -119,6 +120,7 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 
 func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
 	if m.config.qwenEnableCompatible {
+		log.Debugf("qwenProvider TransformRequestBody for qwenEnableCompatible")
 		if gjson.GetBytes(body, "model").Exists() {
 			rawModel := gjson.GetBytes(body, "model").String()
 			mappedModel := getMappedModel(rawModel, m.config.modelMapping)
@@ -133,10 +135,13 @@ func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiN
 	}
 	switch apiName {
 	case ApiNameChatCompletion:
+		log.Debugf("qwenProvider TransformRequestBody for ApiNameChatCompletion")
 		return m.onChatCompletionRequestBody(ctx, body, headers)
 	case ApiNameEmbeddings:
+		log.Debugf("qwenProvider TransformRequestBody for ApiNameEmbeddings")
 		return m.onEmbeddingsRequestBody(ctx, body)
 	default:
+		log.Debugf("qwenProvider TransformRequestBody default: %s", apiName)
 		return m.config.defaultTransformRequestBody(ctx, apiName, body)
 	}
 }

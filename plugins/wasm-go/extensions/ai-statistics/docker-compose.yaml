@@ -1,0 +1,28 @@
+services:
+  httpbin:
+    image: kennethreitz/httpbin:latest
+    container_name: httpbin-service
+    networks:
+      - ai-stats-net
+    ports:
+      - "8080:80"
+
+  envoy:
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.1.5
+    container_name: envoy-gateway
+    entrypoint: /usr/local/bin/envoy
+    # 开启 debug 级别日志方便调试
+    command: -c /etc/envoy/envoy.yaml --component-log-level wasm:debug -l info
+    networks:
+      - ai-stats-net
+    ports:
+      - "10000:10000"  # HTTP 代理端口
+      - "9901:9901"    # Admin 端口
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+      - ./plugin.wasm:/etc/envoy/ai-statistics.wasm
+      - ../ai-proxy/plugin.wasm:/etc/envoy/ai-proxy.wasm
+
+networks:
+  ai-stats-net:
+    driver: bridge

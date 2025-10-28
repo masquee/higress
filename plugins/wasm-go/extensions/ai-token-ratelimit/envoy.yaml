@@ -35,7 +35,7 @@ static_resources:
                         - match:
                             prefix: "/v1/chat/completions"
                           route:
-                            cluster: mock-ai
+                            cluster: qwen
                             timeout: 300s
                         - match:
                             prefix: "/"
@@ -44,7 +44,7 @@ static_resources:
                             timeout: 300s
                 http_filters:
                   # AI Token RateLimit 插件配置
-                  # 使用 mock-ai 服务模拟 AI 响应，返回真实的 token usage 信息
+                  # 使用 Qwen AI 服务（通义千问）作为上游服务，返回真实的 token usage 信息
                   - name: ai-token-ratelimit
                     typed_config:
                       "@type": type.googleapis.com/udpa.type.v1.TypedStruct
@@ -84,6 +84,46 @@ static_resources:
                                 "rejected_code": 429,
                                 "rejected_msg": "Too many tokens consumed. Please try again later."
                               }
+                  # AI Proxy 插件配置
+                  # 处理与 Qwen API 的交互，包括认证和协议转换
+                  - name: ai-proxy
+                    typed_config:
+                      "@type": type.googleapis.com/udpa.type.v1.TypedStruct
+                      type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+                      value:
+                        config:
+                          name: ai-proxy
+                          vm_config:
+                            runtime: envoy.wasm.runtime.v8
+                            code:
+                              local:
+                                filename: /etc/envoy/ai-proxy.wasm
+                          configuration:
+                            "@type": "type.googleapis.com/google.protobuf.StringValue"
+                            value: |
+                              {
+                                "activeProviderId": "qwen",
+                                "providers": [
+                                  {
+                                    "id": "qwen",
+                                    "type": "qwen",
+                                    "domain": "dashscope.aliyuncs.com",
+                                    "apiTokens": [
+                                      "<YOUR_QWEN_API_TOKEN>"
+                                    ],
+                                    "timeout": 1200000,
+                                    "qwenEnableCompatible": true,
+                                    "modelMapping": {
+                                      "gpt-3": "qwen-turbo",
+                                      "gpt-35-turbo": "qwen-plus",
+                                      "gpt-4-turbo": "qwen-max",
+                                      "gpt-4-*": "qwen-max",
+                                      "qwen-turbo": "qwen-turbo",
+                                      "*": "qwen-turbo"
+                                    }
+                                  }
+                                ]
+                              }
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -103,20 +143,25 @@ static_resources:
                     socket_address:
                       address: httpbin
                       port_value: 80
-    - name: mock-ai
+    - name: qwen
       connect_timeout: 30s
       type: LOGICAL_DNS
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
       load_assignment:
-        cluster_name: mock-ai
+        cluster_name: qwen
         endpoints:
           - lb_endpoints:
               - endpoint:
                   address:
                     socket_address:
-                      address: mock-ai
-                      port_value: 8080
+                      address: dashscope.aliyuncs.com
+                      port_value: 443
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          "sni": "dashscope.aliyuncs.com"
     - name: outbound|6379||redis
       connect_timeout: 5s
       type: LOGICAL_DNS

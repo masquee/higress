@@ -20,9 +20,22 @@ env GOPROXY=https://goproxy.cn,direct GOOS=wasip1 GOARCH=wasm go build -buildmod
 
 ### Local Testing with Docker
 
+**Prerequisites**: This plugin requires the ai-proxy plugin to work with real AI services.
+
 ```bash
-# Build and start local test environment (Envoy + Redis + httpbin)
+# 1. Build ai-proxy plugin first
+cd ../ai-proxy
+make build
+cd ../ai-token-ratelimit
+
+# 2. Configure Qwen API Token in envoy.yaml
+#    Edit the ai-proxy configuration and replace <YOUR_QWEN_API_TOKEN>
+
+# 3. Build and start local test environment (Envoy + Redis + Qwen AI)
 make run
+
+# 4. Test with the provided script
+./test-ratelimit.sh test-key-1 5
 
 # Stop and clean up
 make clean
@@ -94,9 +107,9 @@ ai-token-ratelimit/
 ├── util/
 │   └── utils.go           # Helper functions (IP parsing, cookie extraction, metrics)
 ├── main_test.go           # Integration tests with mock proxywasm
-├── envoy.yaml             # Local Envoy config (simplified, routes to httpbin)
-├── envoy-full.yaml.example # Full config with ai-proxy integration
-├── docker-compose.yaml    # Local test environment (Envoy + Redis + httpbin)
+├── envoy.yaml             # Local Envoy config with ai-proxy + Qwen integration
+├── docker-compose.yaml    # Local test environment (Envoy + Redis)
+├── test-ratelimit.sh      # Automated testing script for rate limiting
 └── README_TEST.md         # Comprehensive local testing guide
 ```
 
@@ -167,6 +180,8 @@ The algorithm is defined in the two Lua scripts at the top of main.go. Changes m
 - WASM logs appear in `docker-compose logs -f envoy` (debug level enabled)
 - Redis inspection: `docker-compose exec redis redis-cli`
 - Check Redis keys: `KEYS higress-token-ratelimit:*`
+- Qwen API connection: Check TLS and API token configuration in envoy.yaml
+- Test script: Use `./test-ratelimit.sh` for automated testing
 
 ## Important Constraints
 

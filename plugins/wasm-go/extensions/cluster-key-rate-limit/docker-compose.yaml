@@ -1,0 +1,44 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis-server
+    command: redis-server --appendonly yes
+    networks:
+      - ratelimit-net
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  httpbin:
+    image: kennethreitz/httpbin:latest
+    container_name: httpbin-service
+    networks:
+      - ratelimit-net
+    ports:
+      - "8080:80"
+
+  envoy:
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.1.5
+    container_name: envoy-gateway
+    entrypoint: /usr/local/bin/envoy
+    # 开启了 debug 级别日志方便调试
+    command: -c /etc/envoy/envoy.yaml --component-log-level wasm:debug -l info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ratelimit-net
+    ports:
+      - "10000:10000"  # HTTP 代理端口
+      - "9901:9901"    # Admin 端口
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+      - ./plugin.wasm:/etc/envoy/plugin.wasm
+
+networks:
+  ratelimit-net:
+    driver: bridge

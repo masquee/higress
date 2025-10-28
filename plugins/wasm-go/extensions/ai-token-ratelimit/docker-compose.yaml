@@ -13,6 +13,7 @@ services:
     volumes:
       - ./envoy.yaml:/etc/envoy/envoy.yaml
       - ./plugin.wasm:/etc/envoy/plugin.wasm
+      - ../ai-proxy/plugin.wasm:/etc/envoy/ai-proxy.wasm
     depends_on:
       - redis
 
@@ -29,21 +30,6 @@ services:
       - wasmtest
     ports:
       - "12345:80"
-
-  mock-ai:
-    image: python:3.9-slim
-    command: python /app/mock-ai-service.py
-    networks:
-      - wasmtest
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./mock-ai-service.py:/app/mock-ai-service.py
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
 networks:
   wasmtest: {}

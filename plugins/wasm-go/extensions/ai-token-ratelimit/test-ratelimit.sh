@@ -16,7 +16,7 @@ echo ""
 echo "说明："
 echo "  - test-key-1: 每分钟限制 50 tokens"
 echo "  - test-key-2: 每分钟限制 100 tokens"
-echo "  - 每次请求随机消耗 5-15 tokens"
+echo "  - 使用 Qwen AI 服务进行真实测试"
 echo "========================================"
 echo ""
 
@@ -38,9 +38,9 @@ for i in $(seq 1 $NUM_REQUESTS); do
     RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "${ENDPOINT}?apikey=${API_KEY}" \
         -H "Content-Type: application/json" \
         -d '{
-            "model": "gpt-3.5-turbo",
+            "model": "qwen-turbo",
             "messages": [
-                {"role": "user", "content": "Hello"}
+                {"role": "user", "content": "你好"}
             ]
         }')
 

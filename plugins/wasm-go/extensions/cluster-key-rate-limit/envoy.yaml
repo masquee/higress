@@ -1,15 +1,10 @@
-# 完整配置示例 - 包含 ai-proxy 和 ai-token-ratelimit 插件
-# 使用此配置前需要：
-# 1. 构建 ai-proxy 插件: cd ../ai-proxy && make build && cp plugin.wasm ../ai-token-ratelimit/ai-proxy.wasm
-# 2. 更新 docker-compose.yaml 添加 ai-proxy.wasm 挂载
-# 3. 替换 <YOUR_QWEN_API_TOKEN> 为实际的通义千问 API Token
-
 admin:
   address:
     socket_address:
       protocol: TCP
       address: 0.0.0.0
       port_value: 9901
+
 static_resources:
   listeners:
     - name: listener_0
@@ -23,9 +18,8 @@ static_resources:
             - name: envoy.filters.network.http_connection_manager
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-                scheme_header_transformation:
-                  scheme_to_overwrite: https
                 stat_prefix: ingress_http
+                # Output envoy logs to stdout
                 access_log:
                   - name: envoy.access_loggers.stdout
                     typed_config:
@@ -34,59 +28,21 @@ static_resources:
                   name: local_route
                   virtual_hosts:
                     - name: local_service
-                      domains: [ "*" ]
+                      domains: ["*"]
                       routes:
-                        - match:
-                            prefix: "/v1"
-                          route:
-                            cluster: qwen
-                            timeout: 300s
                         - match:
                             prefix: "/"
                           route:
                             cluster: httpbin
-                            timeout: 300s
+                            timeout: 30s
                 http_filters:
-                  # AI Proxy 插件 - 处理 AI 请求并统计 token 使用量
-                  - name: ai-proxy
+                  - name: cluster-key-rate-limit
                     typed_config:
                       "@type": type.googleapis.com/udpa.type.v1.TypedStruct
                       type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
                       value:
                         config:
-                          name: ai-proxy
-                          vm_config:
-                            runtime: envoy.wasm.runtime.v8
-                            code:
-                              local:
-                                filename: /etc/envoy/ai-proxy.wasm
-                          configuration:
-                            "@type": "type.googleapis.com/google.protobuf.StringValue"
-                            value: |
-                              {
-                                "provider": {
-                                  "type": "qwen",
-                                  "apiTokens": [
-                                    "<YOUR_QWEN_API_TOKEN>"
-                                  ],
-                                  "timeout": 1200000,
-                                  "modelMapping": {
-                                    "gpt-3": "qwen-turbo",
-                                    "gpt-35-turbo": "qwen-plus",
-                                    "gpt-4-turbo": "qwen-max",
-                                    "gpt-4-*": "qwen-max",
-                                    "*": "qwen-turbo"
-                                  }
-                                }
-                              }
-                  # AI Token RateLimit 插件 - 基于 token 使用量限流
-                  - name: ai-token-ratelimit
-                    typed_config:
-                      "@type": type.googleapis.com/udpa.type.v1.TypedStruct
-                      type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
-                      value:
-                        config:
-                          name: ai-token-ratelimit
+                          name: cluster-key-rate-limit
                           vm_config:
                             runtime: envoy.wasm.runtime.v8
                             code:
@@ -96,32 +52,53 @@ static_resources:
                             "@type": "type.googleapis.com/google.protobuf.StringValue"
                             value: |
                               {
-                                "rule_name": "test_limit_by_param_apikey",
+                                "rule_name": "test-rate-limit-rule",
                                 "rule_items": [
                                   {
                                     "limit_by_param": "apikey",
                                     "limit_keys": [
                                       {
                                         "key": "test-key-1",
-                                        "token_per_minute": 1000
+                                        "query_per_minute": 5
                                       },
                                       {
                                         "key": "test-key-2",
-                                        "token_per_minute": 2000
+                                        "query_per_minute": 10
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "limit_by_header": "x-api-key",
+                                    "limit_keys": [
+                                      {
+                                        "key": "header-key-1",
+                                        "query_per_second": 2
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "limit_by_per_param": "user",
+                                    "limit_keys": [
+                                      {
+                                        "key": "*",
+                                        "query_per_minute": 20
                                       }
                                     ]
                                   }
                                 ],
                                 "redis": {
                                   "service_name": "redis",
-                                  "service_port": 6379
+                                  "service_port": 6379,
+                                  "timeout": 2000
                                 },
+                                "show_limit_quota_header": true,
                                 "rejected_code": 429,
-                                "rejected_msg": "Too many tokens consumed. Please try again later."
+                                "rejected_msg": "Too many requests. Please try again later."
                               }
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
   clusters:
     - name: httpbin
       connect_timeout: 30s
@@ -137,13 +114,14 @@ static_resources:
                     socket_address:
                       address: httpbin
                       port_value: 80
-    - name: redis
+
+    - name: outbound|6379||redis
       connect_timeout: 5s
       type: LOGICAL_DNS
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
       load_assignment:
-        cluster_name: redis
+        cluster_name: outbound|6379||redis
         endpoints:
           - lb_endpoints:
               - endpoint:
@@ -151,22 +129,3 @@ static_resources:
                     socket_address:
                       address: redis
                       port_value: 6379
-    - name: qwen
-      connect_timeout: 30s
-      type: LOGICAL_DNS
-      dns_lookup_family: V4_ONLY
-      lb_policy: ROUND_ROBIN
-      load_assignment:
-        cluster_name: qwen
-        endpoints:
-          - lb_endpoints:
-              - endpoint:
-                  address:
-                    socket_address:
-                      address: dashscope.aliyuncs.com
-                      port_value: 443
-      transport_socket:
-        name: envoy.transport_sockets.tls
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          "sni": "dashscope.aliyuncs.com"

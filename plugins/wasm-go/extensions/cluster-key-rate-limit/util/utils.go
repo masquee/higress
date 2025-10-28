@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"encoding/json"
 	"github.com/zmap/go-iptree/iptree"
 )
 
@@ -57,4 +58,9 @@ func ExtractCookieValueByKey(cookie string, key string) (value string) {
 		}
 	}
 	return value
+}
+
+func ToJsonString(obj any) string {
+	bytes, _ := json.Marshal(obj)
+	return string(bytes)
 }

@@ -96,6 +96,7 @@ func parseConfig(json gjson.Result, cfg *config.ClusterKeyRateLimitConfig) error
 	if err != nil {
 		return err
 	}
+	log.Infof("cluster key rate limit config:\n%s", util.ToJsonString(cfg))
 	return nil
 }
 
@@ -124,6 +125,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.ClusterKeyRateLimi
 	// 执行限流逻辑
 	keys := []interface{}{limitKey}
 	args := []interface{}{count, timeWindow}
+	log.Infof("keys: %v, args: %v", keys, args)
 	err := cfg.RedisClient.Eval(FixedWindowScript, 1, keys, args, func(response resp.Value) {
 		resultArray := response.Array()
 		if len(resultArray) != 3 {
